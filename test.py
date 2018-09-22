@@ -48,7 +48,6 @@ def read_input(f_name):
 
     return [[euc_dist(i,j) for j in coords] for i in coords]
 
-
 def calc_cost(route, graph):
     result = 0
     current = route[0]
