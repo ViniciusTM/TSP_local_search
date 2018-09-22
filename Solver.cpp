@@ -1,7 +1,13 @@
 #include "Solver.h"
+#include <limits>
+#include <array>
 #include <vector>
-#include <tuple>
-#include "Graph.h"
+#include <iostream>
+#include <algorithm>
+
+//    Global constants and typedefs
+const double INF = std::numeric_limits<double>::infinity();
+typedef std::array<int, 2> Tuple;
 
 //    Edge
 bool compare_edges(Edge a, Edge b) {
@@ -42,111 +48,32 @@ DisjointSet::DisjointSet(int size) {
   }
 }
 
-//    HamiltonianCycle
-void HamiltonianCycle::reserve(int n) {
-  nodes.reserve(n);
-  positions.resize(n);
-}
-
-void HamiltonianCycle::clear() {
-  len = 0;
-  nodes.clear();
-  positions.clear();
-}
-
-void HamiltonianCycle::push_back(int id) {
-  nodes.push_back(id);
-  positions[id] = len;
-  len++;
-}
-
-int HamiltonianCycle::size() {
-  return len;
-}
-
-int HamiltonianCycle::next(int id) {
-  int next = (positions[id] + 1) % len;
-  return nodes[next];
-}
-
-int HamiltonianCycle::prev(int id) {
-  int prev = (positions[id] - 1 + len) % len;
-  return nodes[prev];
-}
-
-bool HamiltonianCycle::between(int a, int b, int c) {
-  if (positions[c] > positions[a]) {
-    return (positions[b] > positions[a] && positions[b] < positions[c]);
-  }
-  else {
-    return (positions[b] > positions[a] || positions[b] < positions[c]);
-  }
-}
-
-void HamiltonianCycle::flip(int a, int b, int c, int d) {
-  std::vector<int> new_cycle;
-  new_cycle.reserve(len);
-
-  new_cycle.push_back(b);
-
-  if (between(b, c, d)) {
-    while(prev(b) != d) {
-      b = prev(b);
-      new_cycle.push_back(b);
-    }
-
-    new_cycle.push_back(d);
-    new_cycle.push_back(a);
-
-    while(next(a) != c) {
-      a = next(a);
-      new_cycle.push_back(a);
-    }
-    new_cycle.push_back(c);
-  }
-
-  else {
-    while(next(b) != d) {
-      b = next(b);
-      new_cycle.push_back(b);
-    }
-
-    new_cycle.push_back(d);
-    new_cycle.push_back(a);
-
-    while(prev(a) != c) {
-      a = prev(a);
-      new_cycle.push_back(a);
-    }
-    new_cycle.push_back(c);
-  }
-
-  nodes = new_cycle;
-  for (int i=0; i<len; i++) {
-    positions[nodes[i]] = i;
-  }
-}
-
 //    Solver
-Solver::Solver(Graph g): g(g) {
-  cycle.clear();
-  cycle.reserve(g.n);
-}
-
-Solver::Solver(const char* f_name, const char* metric): g(Graph(f_name, metric)) {
-  cycle.clear();
-  cycle.reserve(g.n);
-}
-
-void Solver::greedy_edge_selection(std::vector<Edge> &edges) {
+void greedy_constructive_heuristic(Graph &g) {
+  std::vector<Edge> edges(g.n*(g.n-1)/2);
   int idx = 0;
+
+  // Making vector of edges weighted by distance
+  for (int i=0; i<g.n; i++) {
+    for (int j=i+1; j<g.n; j++) {
+      edges[idx].u = i;
+      edges[idx].v = j;
+      edges[idx].w = g.dist_matrix[i][j];
+      idx++;
+    }
+  }
+
+  // sorting by weight
+  std::sort(edges.begin(), edges.end(), compare_edges);
+
+  // Greedy Selection of edges
   Edge e;
   DisjointSet set(g.n);
-  std::vector<int> flag(g.n, 0); // 0 -> not in the cycle; 1-> one of the tips; 2-> in the middle
   std::vector<Tuple> locations(g.n); // for recreating the cycle in O(n)
-  std::vector<Edge> sol(g.n);
+  std::vector<int> flag(g.n, 0); // 0: not selected; 1: tip; 2: middle
+  std::vector<Edge> selected_edges(g.n); // result
+  idx = 0;
 
-  std::sort(edges.begin(), edges.end(), compare_edges);
   for (int i=0; i<edges.size(); i++) {
     e = edges[i];
     if (flag[e.u] < 2 && flag[e.v] < 2 && find(&set.nodes[e.v]) != find(&set.nodes[e.u])) {
@@ -155,32 +82,29 @@ void Solver::greedy_edge_selection(std::vector<Edge> &edges) {
       flag[e.u]++;
       locations[e.v][flag[e.v]] = idx;
       flag[e.v]++;
-      sol[idx] = e;
-      obj_func += g.dist_matrix(e.u, e.v);
+      selected_edges[idx] = e;
+      g.cycle.len += g.dist_matrix[e.u][e.v];
       idx++;
     }
     else if (flag[e.u] == 1 && flag[e.v] == 1 && idx == g.n-1) {
       locations[e.u][flag[e.u]] = idx;
       locations[e.v][flag[e.v]] = idx;
-      sol[idx] = e;
-      obj_func += g.dist_matrix(e.u,e.v);
+      selected_edges[idx] = e;
+      g.cycle.len += g.dist_matrix[e.u][e.v];
       break;
     }
   }
 
-  make_cycle(sol, locations);
-}
+  // Making cycle
+  int current_idx = 0, current_node = selected_edges[0].v;
+  idx = 0;
 
-void Solver::make_cycle(std::vector<Edge> &sol, std::vector<Tuple> &locations) {
-  int current_node = sol[0].v, current_idx = 0;
+  g.cycle.add(selected_edges[0].u, idx);
+  idx++;
+  g.cycle.add(selected_edges[0].v, idx);
+  idx++;
 
-  cycle.clear();
-  cycle.push_back(sol[0].u);
-  cycle.push_back(sol[0].v);
-
-  int count = 0;
-
-  while(cycle.size() < g.n) {
+  for (int i = 2; i<g.n; i++) {
     if (locations[current_node][0] == current_idx) {
       current_idx = locations[current_node][1];
     }
@@ -188,115 +112,175 @@ void Solver::make_cycle(std::vector<Edge> &sol, std::vector<Tuple> &locations) {
       current_idx = locations[current_node][0];
     }
 
-    if (sol[current_idx].u == current_node) {
-      current_node = sol[current_idx].v;
+    if (selected_edges[current_idx].u == current_node) {
+      current_node = selected_edges[current_idx].v;
     }
     else {
-      current_node = sol[current_idx].u;
+      current_node = selected_edges[current_idx].u;
     }
-    cycle.push_back(current_node);
+    g.cycle.add(current_node, idx);
+    idx++;
   }
 
+  g.cycle.valid = true;
 }
 
-void Solver::build_sol_NN(int start) {
-  std::vector<bool> visited(g.n, false);
-  int current = start;
-  int best_node;
+void local_search_vnd(Graph &g, int k) {
+  if (!g.cycle.valid) {
+    std::cout << "Solver - local_search_2opt: " << std::endl;
+    std::cout << "Local search requires a initial solution" << std::endl;
+    std::exit(EXIT_FAILURE);
+  }
 
-  obj_func = 0;
-  visited[current] = true;
-  cycle.clear();
-  cycle.push_back(current);
-  for (int i=0; i<g.n-1; i++) {
-    double best_cost = INF;
+  while (true) {
+    if (search_2opt(g, k)) {
+      continue;
+    }
+    else if(search_3opt(g)) {
+      continue;
+    }
+    break;
+  }
+}
 
-    for (int j=0; j<g.n; j++) {
-      if (!visited[j] && g.dist_matrix(current, j) < best_cost) {
-        best_cost = g.dist_matrix(current, j);
-        best_node = j;
+bool search_2opt(Graph &g, int k) {
+  char orientation[2] = {'f', 'b'};
+  int a, b, c, d;
+  int i, j;
+  double add, loss;
+
+  for (int idx1=0; idx1<g.n; idx1++) {
+
+    for (char direction : orientation) {
+      if (direction == 'f') {
+        a = g.cycle.tour[idx1];
+        b = g.cycle.next(a);
+        i = g.cycle.positions[a];
       }
-    }
-    current = best_node;
-    cycle.push_back(current);
-    visited[current] = true;
-    obj_func += best_cost;
-  }
+      else {
+        a = g.cycle.tour[idx1];
+        b = g.cycle.prev(a);
+        i = g.cycle.positions[b];
+      }
 
-  obj_func += g.dist_matrix(current, start);
-}
-
-void Solver::build_sol_greedy() {
-  std::vector<Edge> edges(g.n*(g.n-1)/2);
-  int idx = 0;
-  obj_func = 0;
-
-  for (int i=0; i<g.n; i++) {
-    for (int j=i+1; j<g.n; j++) {
-      edges[idx].u = i;
-      edges[idx].v = j;
-      edges[idx].w = g.dist_matrix(i,j);
-      idx++;
-    }
-  }
-  greedy_edge_selection(edges);
-}
-
-void Solver::build_sol_CW(int start) {
-  std::vector<Edge> savings(g.n*(g.n-1)/2);
-  int idx = 0;
-  obj_func = 0;
-
-  for (int i=0; i<g.n; i++) {
-    for (int j=i+1; j<g.n; j++) {
-      savings[idx].u = i;
-      savings[idx].v = j;
-      savings[idx].w = g.dist_matrix(i,j) - g.dist_matrix(start,i) - g.dist_matrix(start,j);
-      idx++;
-    }
-  }
-  greedy_edge_selection(savings);
-}
-
-void Solver::local_search_2opt(int k) {
-  int b, c, d;
-  double gain, loss;
-  bool flag = false, end = false;
-
-  int count = 0;
-  while(!end) {
-    end = true;
-    flag = false;
-
-    for (int a=0; a<g.n; a++) {
-      b = cycle.next(a);
-
-      for (int i=1; i<k; i++) {
-        c = g.sorted_neighbor(b, i);
-
-        if (g.dist_matrix(a, b) > g.dist_matrix(b, c)) {
-          d = cycle.prev(c);
-          //if (d == a || d == b) {continue;}
-
-          gain = g.dist_matrix(b, c) + g.dist_matrix(a, d);
-          loss = g.dist_matrix(a, b) + g.dist_matrix(c, d);
-
-          if (loss > gain) {
-            //std::cout << a << " " << b << " " << c << " " << d << std::endl;
-            cycle.flip(a, b, c, d);
-            //std::cout << std::endl;
-            obj_func = obj_func - loss + gain;
-            flag = true;
-            end = false;
-            break;
-          }
+      for (int idx2=1; idx2<=k; idx2++) {
+        c = g.sorted_neighbor[a][idx2];
+        if (direction == 'f') {
+          j = g.cycle.positions[c];
+          d = g.cycle.next(c);
+        }
+        else {
+          d = g.cycle.prev(c);
+          j = g.cycle.positions[d];
         }
 
-      }
-      if (flag) {break;}
-    }
-    count++;
-    if (count > 100) {break;}
-  }
+        if (b == c || d == a) continue;
+        if (g.dist_matrix[a][c] > g.dist_matrix[a][b]) break;
 
+        add = g.dist_matrix[a][c] + g.dist_matrix[b][d];
+        loss = g.dist_matrix[a][b] + g.dist_matrix[c][d];
+        if (loss > add) {
+          g.cycle.reverse( (i+1) % g.n, j );
+          g.cycle.len = g.cycle.len + add - loss;
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
+
+bool search_3opt(Graph &g) {
+  int moves_opt3[2] = { 1, 2 };
+  int a, b, c, d, e, f;
+  int i, j, k;
+  double add, loss;
+
+  for (int idx1=0; idx1<g.n; idx1++) {
+    i = idx1;
+    a = g.cycle.tour[i];
+    b = g.cycle.next(a);
+
+    for (int idx2=2; idx2<g.n-2; idx2++) {
+      j = (i + idx2) % g.n;
+      c = g.cycle.tour[j];
+      d = g.cycle.next(c);
+
+      for (int idx3=idx2+2; idx3<g.n; idx3++) {
+        k = (i + idx3) % g.n;
+        e = g.cycle.tour[k];
+        f = g.cycle.next(e);
+
+        for (int move : moves_opt3) {
+          if (move == 1) {
+            add = g.dist_matrix[a][d] + g.dist_matrix[e][c] + g.dist_matrix[f][b];
+          }
+          else {
+            add = g.dist_matrix[a][d] + g.dist_matrix[e][b] + g.dist_matrix[c][f];
+          }
+          loss = g.dist_matrix[a][b] + g.dist_matrix[c][d] + g.dist_matrix[e][f];
+
+          if (loss > add) {
+            if (move == 1) {
+              g.cycle.reverse( (k+1) % g.n, i);
+              g.cycle.reverse( (j+1) % g.n, k);
+            }
+            else {
+              g.cycle.reverse( (k+1) % g.n, i);
+              g.cycle.reverse( (i+1) % g.n, j);
+              g.cycle.reverse( (j+1) % g.n, k);
+            }
+            g.cycle.len = g.cycle.len + add - loss;
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+
+
+// void Solver::build_sol_CW(int start) {
+//   std::vector<Edge> savings(g.n*(g.n-1)/2);
+//   int idx = 0;
+//   obj_func = 0;
+//
+//   for (int i=0; i<g.n; i++) {
+//     for (int j=i+1; j<g.n; j++) {
+//       savings[idx].u = i;
+//       savings[idx].v = j;
+//       savings[idx].w = g.dist_matrix(i,j) - g.dist_matrix(start,i) - g.dist_matrix(start,j);
+//       idx++;
+//     }
+//   }
+//   greedy_edge_selection(savings);
+// }
+//
+// void Solver::build_sol_NN(int start) {
+//   std::vector<bool> visited(g.n, false);
+//   int current = start;
+//   int best_node;
+//
+//   obj_func = 0;
+//   visited[current] = true;
+//   cycle.clear();
+//   cycle.push_back(current);
+//   for (int i=0; i<g.n-1; i++) {
+//     double best_cost = INF;
+//
+//     for (int j=0; j<g.n; j++) {
+//       if (!visited[j] && g.dist_matrix(current, j) < best_cost) {
+//         best_cost = g.dist_matrix(current, j);
+//         best_node = j;
+//       }
+//     }
+//     current = best_node;
+//     cycle.push_back(current);
+//     visited[current] = true;
+//     obj_func += best_cost;
+//   }
+//
+//   obj_func += g.dist_matrix(current, start);
+// }
