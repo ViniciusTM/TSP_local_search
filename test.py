@@ -40,7 +40,7 @@ def read_input(f_name):
         coords.append([int(float(i)) for i in line[1:]])
     f.close()
 
-    euc_dist = lambda x,y: int(sqrt((x[0] - y[0])**2 + (x[1] - y [1])**2))
+    euc_dist = lambda x,y: round(sqrt((x[0] - y[0])**2 + (x[1] - y [1])**2))
     pseudo_euc_dist = lambda x,y: ceil(sqrt( ((x[0] - y[0])**2 + (x[1] - y [1])**2)/10 ))
 
     if (f_name[7:] == "att48.tsp"):

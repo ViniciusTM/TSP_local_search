@@ -27,15 +27,9 @@ int main() {
   std::clock_t begin;
   Graph graph;
 
+
   // graph.build("EUC_2D/att48.tsp");
-  // greedy_constructive_heuristic(graph);
-  // std::cout << "obj func: " << graph.cycle.len << std::endl;
-  // for (int i=0; i<graph.n; i++) {
-  //   std::cout << graph.cycle.tour[i] << " ";
-  // }
-  // std::cout << std::endl;
-  //
-  // local_search_3opt(graph);
+  // randomize_nearest_neighbor(graph, 0.5);
   // std::cout << "obj func: " << graph.cycle.len << std::endl;
   // for (int i=0; i<graph.n; i++) {
   //   std::cout << graph.cycle.tour[i] << " ";
@@ -53,14 +47,14 @@ int main() {
     std::cout << "\n==========> SOLVING " + name << std::endl;
 
     begin = clock();
-    graph.build(("EUC_2D/" + name).c_str(), metric.c_str());
+    graph.build(("EUC_2D/" + name).c_str(), metric.c_str(), true);
     build_time = static_cast<double>(clock() - begin) / CLOCKS_PER_SEC;
     std::cout << "Building time: " << build_time << std::endl;
 
     f.open(("OUT/" + name).c_str());
 
     begin = clock();
-    greedy_constructive_heuristic(graph);
+    grasp(graph, 5000);
     elapsed_time = static_cast<double>(clock() - begin) / CLOCKS_PER_SEC;
     std::cout << "-> Constructive Heuristic" << std::endl;
     std::cout << "elapsed time = " << elapsed_time << "s (" << elapsed_time + build_time << ")";
@@ -73,18 +67,18 @@ int main() {
     f << std::endl;
     f << std::endl;
 
-    begin = clock();
-    local_search_vnd(graph, 20);
-    elapsed_time = static_cast<double>(clock() - begin) / CLOCKS_PER_SEC;
-    std::cout << "-> Variable Neighborhood Search [2opt (k=20) + 3opt]" << std::endl;
-    std::cout << "elapsed time = " << elapsed_time << "s (" << elapsed_time + build_time << ")";
-    std::cout << " - Objective Function = " << graph.cycle.len << std::endl;
-    f << "-> Variable Neighborhood Search [2opt (k=20) + 3opt]" << std::endl;
-    f << std::setprecision(7) << graph.cycle.len << std::endl;
-    for (int j=0; j<graph.n; j++) {
-      f << graph.cycle.tour[j] << " ";
-    }
-    f << std::endl;
+    // begin = clock();
+    // tabu_search(graph, 20, 200);
+    // elapsed_time += static_cast<double>(clock() - begin) / CLOCKS_PER_SEC;
+    // std::cout << "-> Tabu Search [2opt (k=20)]" << std::endl;
+    // std::cout << "elapsed time = " << elapsed_time << "s (" << elapsed_time + build_time << ")";
+    // std::cout << " - Objective Function = " << graph.cycle.len << std::endl;
+    // f << "-> Tabu Search [2opt (k=20)]" << std::endl;
+    // f << std::setprecision(7) << graph.cycle.len << std::endl;
+    // for (int j=0; j<graph.n; j++) {
+    //   f << graph.cycle.tour[j] << " ";
+    // }
+    // f << std::endl;
 
     f.close();
   }

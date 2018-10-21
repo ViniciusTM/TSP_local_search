@@ -13,7 +13,7 @@ int pseudo_euclidian_dist(Point, Point);
 //------------------> Class HamiltonianCycle
 class HamiltonianCycle {
 public:
-  float len;
+  double len;
   bool valid;
   std::vector<int> tour;
   std::vector<int> positions;
@@ -45,11 +45,12 @@ public:
 
   Graph();
   ~Graph();
-  void build(const char*, const char* = "euclid");
+  void build(const char*, const char* = "euclid", bool = false);
 
 private:
   bool built;
   void build_dist_matrix(const char*, std::vector<Point>&);
+  void build_neighbor_list();
 };
 
 #endif

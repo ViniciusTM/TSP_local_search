@@ -63,9 +63,6 @@ void HamiltonianCycle::reverse(int start, int end) {
   for (int i=0; i<inversion_size; i++) {
     swap(left, right);
 
-    positions[tour[left]] = left;
-    positions[tour[right]] = right;
-
     left = (left + 1) % size;
     right = (size + right - 1) % size;
   }
@@ -134,7 +131,7 @@ Graph::~Graph() {
   delete[] dist_matrix;
 }
 
-void Graph::build(const char* f_name, const char* metric) {
+void Graph::build(const char* f_name, const char* metric, bool neighbor_list) {
   std::ifstream file(f_name);
 
   // Test if file exists
@@ -172,17 +169,25 @@ void Graph::build(const char* f_name, const char* metric) {
   }
   file.close();
 
-  // Building distance matrix and sorted_neighbor
-  sorted_neighbor.resize(n);
+  // Building distance matrix
   dist_matrix = new double*[n];
   for (int i=0; i<n; i++) {
     dist_matrix[i] = new double[n];
-    sorted_neighbor[i].resize(n);
   }
 
   build_dist_matrix(metric, coords);
 
-  // Cycle
+  // Build sorted neighbor list
+  if (neighbor_list) {
+    sorted_neighbor.resize(n);
+    for (int i=0; i<n; i++) {
+      sorted_neighbor[i].resize(n);
+    }
+
+    build_neighbor_list();
+  }
+
+  // initialize cycle
   cycle.resize(n);
   cycle.len = 0;
   cycle.valid = false;
@@ -210,9 +215,16 @@ void Graph::build_dist_matrix(const char* metric, std::vector<Point> &coords) {
       else {
         dist_matrix[i][j] = dist_matrix[j][i];
       }
+    }
+  }
+}
+
+void Graph::build_neighbor_list() {
+  for (int i=0; i<n; i++) {
+    for (int j=0; j<n; j++) {
       sorted_neighbor[i][j] = j;
     }
     std::sort(sorted_neighbor[i].begin(), sorted_neighbor[i].end(),
-     [&](int a, int b){return dist_matrix[i][a] < dist_matrix[i][b];});
+      [&](int a, int b) {return dist_matrix[i][a] < dist_matrix[i][b];});
   }
 }
